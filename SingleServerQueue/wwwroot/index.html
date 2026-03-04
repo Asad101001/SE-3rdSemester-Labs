@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Single-Server Queue Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@400;600;800&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080c10;--surf:#0d1520;--border:#1a2d45;
+  --cyan:#00e5ff;--orange:#ff6b35;--green:#39ff14;--red:#ff1744;
+  --text:#c8d8e8;--dim:#4a6a8a;
+  --mono:'Share Tech Mono',monospace;--sans:'Exo 2',sans-serif;
+  --glow:0 0 18px rgba(0,229,255,.28);
+}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh}
+body::before{content:'';position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.06) 2px,rgba(0,0,0,.06) 4px);
+  pointer-events:none;z-index:9999}
+.bg{position:fixed;inset:0;
+  background-image:linear-gradient(rgba(0,229,255,.022) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(0,229,255,.022) 1px,transparent 1px);
+  background-size:40px 40px;pointer-events:none}
+
+/* header */
+header{padding:1.1rem 2rem;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem}
+.logo{font-family:var(--mono);font-size:1.2rem;color:var(--cyan);
+  text-shadow:var(--glow);letter-spacing:.08em}
+.logo span{color:var(--orange)}
+.hdr-r{font-family:var(--mono);font-size:.68rem;color:var(--dim);display:flex;gap:1.2rem}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 7px var(--green);display:inline-block;margin-right:.35rem;
+  animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+main{max-width:920px;margin:0 auto;padding:1.8rem 1.4rem 5rem}
+.sec{font-family:var(--mono);font-size:.6rem;letter-spacing:.25em;color:var(--cyan);
+  opacity:.6;text-transform:uppercase;margin-bottom:.8rem}
+
+/* model cards */
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;margin-bottom:1.8rem}
+@media(max-width:540px){.cards{grid-template-columns:1fr}}
+.card{border:1px solid var(--border);border-radius:5px;padding:1.2rem 1rem 1rem;
+  cursor:pointer;background:var(--surf);transition:all .15s;user-select:none;position:relative}
+.card:hover{border-color:var(--cyan);transform:translateY(-2px)}
+.card.on{border-color:var(--cyan);background:rgba(0,229,255,.04);box-shadow:var(--glow)}
+.card-tag{position:absolute;top:.6rem;right:.65rem;font-family:var(--mono);font-size:.55rem;
+  padding:.15rem .4rem;border:1px solid var(--border);border-radius:2px;color:var(--dim)}
+.card.on .card-tag{border-color:var(--cyan);color:var(--cyan)}
+.card-id{font-family:var(--mono);font-size:1.45rem;color:var(--dim);margin-bottom:.25rem;transition:color .15s}
+.card.on .card-id{color:var(--cyan);text-shadow:var(--glow)}
+.card-name{font-weight:600;font-size:.7rem;letter-spacing:.06em;margin-bottom:.35rem}
+.card-desc{font-family:var(--mono);font-size:.62rem;color:var(--dim);line-height:1.6}
+.card.on::after{content:'▶';position:absolute;bottom:.5rem;right:.7rem;
+  font-size:.6rem;color:var(--cyan);opacity:.5}
+
+/* param panel */
+.panel{background:var(--surf);border:1px solid var(--border);border-radius:5px;
+  padding:1.3rem;margin-bottom:1.3rem}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.9rem;margin-bottom:.85rem}
+.row:last-child{margin-bottom:0}
+.f{display:flex;flex-direction:column;gap:.28rem}
+.f label{font-family:var(--mono);font-size:.6rem;letter-spacing:.13em;color:var(--dim);
+  text-transform:uppercase;display:flex;align-items:center;gap:.35rem}
+.f label b{font-size:.85rem;color:var(--cyan)}
+.f input,.f select{font-family:var(--mono);font-size:.9rem;padding:.48rem .7rem;
+  background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);
+  outline:none;-moz-appearance:textfield;transition:border-color .13s}
+.f input::-webkit-outer-spin-button,.f input::-webkit-inner-spin-button{-webkit-appearance:none}
+.f input:focus,.f select:focus{border-color:var(--cyan)}
+.f select option{background:var(--bg)}
+.f small{font-family:var(--mono);font-size:.58rem;color:var(--dim)}
+.hr{height:1px;background:var(--border);margin:1rem 0}
+.extra{overflow:hidden;max-height:0;opacity:0;transition:max-height .28s ease,opacity .22s ease}
+.extra.open{max-height:240px;opacity:1}
+
+/* run */
+.run{display:flex;align-items:center;gap:.9rem;margin-bottom:1.6rem}
+.btn{font-family:var(--mono);font-size:.85rem;letter-spacing:.09em;padding:.7rem 1.8rem;
+  background:transparent;border:2px solid var(--cyan);border-radius:3px;color:var(--cyan);
+  cursor:pointer;overflow:hidden;position:relative;transition:all .15s;text-transform:uppercase}
+.btn::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(0,229,255,.13),transparent);transition:left .35s}
+.btn:hover{background:rgba(0,229,255,.06);box-shadow:var(--glow)}
+.btn:hover::before{left:100%}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.3;cursor:not-allowed}
+.spin{font-family:var(--mono);font-size:.72rem;color:var(--cyan);opacity:0;transition:opacity .15s}
+.spin.on{opacity:1}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.blink{animation:blink .7s step-end infinite}
+.errbox{font-family:var(--mono);font-size:.75rem;color:var(--red);
+  background:rgba(255,23,68,.05);border:1px solid rgba(255,23,68,.22);
+  border-radius:3px;padding:.65rem .9rem;margin-bottom:1.3rem;display:none}
+.errbox.on{display:block}
+
+/* results */
+.results{opacity:0;transform:translateY(6px);transition:opacity .35s,transform .35s;pointer-events:none}
+.results.on{opacity:1;transform:none;pointer-events:all}
+
+.badge{display:inline-flex;align-items:center;gap:.4rem;font-family:var(--mono);font-size:.68rem;
+  padding:.25rem .7rem;border-radius:2px;letter-spacing:.06em;margin-bottom:1rem}
+.badge.ok {background:rgba(57,255,20,.06);border:1px solid rgba(57,255,20,.25);color:var(--green)}
+.badge.bad{background:rgba(255,23,68,.06);border:1px solid rgba(255,23,68,.25);color:var(--red)}
+
+/* kpi tiles */
+.tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;
+  background:var(--border);border:1px solid var(--border);border-radius:5px;
+  overflow:hidden;margin-bottom:1.1rem}
+@media(max-width:600px){.tiles{grid-template-columns:repeat(3,1fr)}}
+.tile{background:var(--surf);padding:.9rem .55rem;text-align:center}
+.tile-s{font-family:var(--mono);font-size:.64rem;color:var(--cyan);margin-bottom:.15rem}
+.tile-v{font-family:var(--mono);font-size:1.15rem;font-weight:600;color:#fff;
+  line-height:1;margin-bottom:.1rem}
+.tile-l{font-size:.55rem;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+
+/* formula note */
+.fnote{background:rgba(0,229,255,.03);border:1px solid rgba(0,229,255,.1);
+  border-radius:3px;padding:.7rem 1rem;margin-bottom:1.1rem;
+  font-family:var(--mono);font-size:.72rem;color:var(--orange);line-height:1.6}
+
+/* full table */
+.tbl-wrap{background:var(--surf);border:1px solid var(--border);border-radius:5px;overflow:hidden}
+.tbl-head{background:rgba(0,229,255,.03);border-bottom:1px solid var(--border);
+  padding:.5rem 1rem;font-family:var(--mono);font-size:.6rem;letter-spacing:.18em;
+  color:var(--cyan);text-transform:uppercase}
+table{width:100%;border-collapse:collapse}
+tr{border-bottom:1px solid rgba(26,45,69,.45)}
+tr:last-child{border-bottom:none}
+tr:hover td{background:rgba(0,229,255,.015)}
+td{font-family:var(--mono);font-size:.73rem;padding:.47rem 1rem;color:var(--dim)}
+td:first-child{color:var(--text);width:55%}
+td:last-child{color:var(--cyan);text-align:right}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+
+<header>
+  <div class="logo">SINGLE-SERVER <span>QUEUE</span></div>
+  <div class="hdr-r">
+    <span><span class="dot"></span>READY</span>
+    <span id="hm">—</span>
+    <span id="hr">ρ = —</span>
+  </div>
+</header>
+
+<main>
+
+<!-- ── Model selection ── -->
+<p class="sec">// select model</p>
+<div class="cards">
+  <div class="card on" data-m="mm1" onclick="pick(this)">
+    <span class="card-tag">EXACT</span>
+    <div class="card-id">M/M/1</div>
+    <div class="card-name">MARKOVIAN</div>
+    <div class="card-desc">Exponential arrivals<br>Exponential service</div>
+  </div>
+  <div class="card" data-m="mg1" onclick="pick(this)">
+    <span class="card-tag">P-K</span>
+    <div class="card-id">M/G/1</div>
+    <div class="card-name">GENERAL SERVICE</div>
+    <div class="card-desc">Exponential arrivals<br>Any service distribution</div>
+  </div>
+  <div class="card" data-m="gg1" onclick="pick(this)">
+    <span class="card-tag">MARCHAL</span>
+    <div class="card-id">G/G/1</div>
+    <div class="card-name">FULLY GENERAL</div>
+    <div class="card-desc">Any arrival dist<br>Any service distribution</div>
+  </div>
+</div>
+
+<!-- ── Parameters ── -->
+<p class="sec">// parameters</p>
+<div class="panel">
+
+  <!-- Common to all models -->
+  <div class="row">
+    <div class="f">
+      <label><b>E[A]</b> Mean Inter-Arrival</label>
+      <input type="number" id="ea" value="10" min="0.01" step="0.5"/>
+      <small>minutes  (e.g. Ex.1: 10)</small>
+    </div>
+    <div class="f">
+      <label><b>E[S]</b> Mean Service Time</label>
+      <input type="number" id="es" value="8" min="0.01" step="0.5"/>
+      <small>minutes  (e.g. Ex.1: 8)</small>
+    </div>
+    <div class="f">
+      <label><b>T</b> Simulation Time</label>
+      <input type="number" id="st" value="5000" min="10" step="500"/>
+      <small>minutes</small>
+    </div>
+  </div>
+
+  <!-- M/G/1 extra fields -->
+  <div class="extra" id="xmg1">
+    <div class="hr"></div>
+    <div class="row">
+      <div class="f">
+        <label><b>σs²</b> Service Variance</label>
+        <input type="number" id="vs" value="0.3333" min="0.0001" step="0.1"/>
+        <small>e.g. Uniform(7,9): (9-7)²/12 = 0.3333</small>
+      </div>
+      <div class="f">
+        <label><b>Dist</b> Service Distribution</label>
+        <select id="sdist">
+          <option value="uniform">Uniform</option>
+          <option value="exponential">Exponential</option>
+          <option value="normal">Normal</option>
+          <option value="gamma">Gamma</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- G/G/1 extra fields -->
+  <div class="extra" id="xgg1">
+    <div class="hr"></div>
+    <div class="row">
+      <div class="f">
+        <label><b>σa²</b> Arrival Variance</label>
+        <input type="number" id="va" value="20" min="0.0001" step="1"/>
+        <small>e.g. Ex.3: σa²=20 (Gamma)</small>
+      </div>
+      <div class="f">
+        <label><b>Dist</b> Arrival Distribution</label>
+        <select id="adist">
+          <option value="gamma">Gamma</option>
+          <option value="exponential">Exponential</option>
+          <option value="uniform">Uniform</option>
+          <option value="normal">Normal</option>
+        </select>
+      </div>
+      <div class="f">
+        <label><b>σs²</b> Service Variance</label>
+        <input type="number" id="vs2" value="25" min="0.0001" step="1"/>
+        <small>e.g. Ex.3: σs²=25 (Normal)</small>
+      </div>
+      <div class="f">
+        <label><b>Dist</b> Service Distribution</label>
+        <select id="sdist2">
+          <option value="normal">Normal</option>
+          <option value="exponential">Exponential</option>
+          <option value="uniform">Uniform</option>
+          <option value="gamma">Gamma</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end panel -->
+
+<div class="run">
+  <button class="btn" id="rbtn" onclick="run()">▶ COMPUTE</button>
+  <span class="spin" id="spin">RUNNING <span class="blink">_</span></span>
+</div>
+<div class="errbox" id="err"></div>
+
+<!-- ── Results ── -->
+<div class="results" id="results">
+  <p class="sec">// results</p>
+  <div id="badge"></div>
+
+  <!-- 5 key metrics matching the PDF output order -->
+  <div class="tiles" id="tiles"></div>
+
+  <!-- Formula note from backend -->
+  <div class="fnote" id="fnote"></div>
+
+  <!-- Full table -->
+  <div class="tbl-wrap">
+    <div class="tbl-head">ALL METRICS</div>
+    <table><tbody id="tbody"></tbody></table>
+  </div>
+</div>
+
+</main>
+
+<script>
+let model = 'mm1';
+
+function pick(c) {
+  document.querySelectorAll('.card').forEach(x => x.classList.remove('on'));
+  c.classList.add('on');
+  model = c.dataset.m;
+  document.getElementById('xmg1').classList.toggle('open', model === 'mg1');
+  document.getElementById('xgg1').classList.toggle('open', model === 'gg1');
+  document.getElementById('hm').textContent = model.toUpperCase();
+  document.getElementById('results').classList.remove('on');
+}
+
+async function run() {
+  const btn = document.getElementById('rbtn');
+  const sp  = document.getElementById('spin');
+  const err = document.getElementById('err');
+  btn.disabled = true; sp.classList.add('on'); err.classList.remove('on');
+
+  const body = {
+    model,
+    meanArrival:     +document.getElementById('ea').value,
+    meanService:     +document.getElementById('es').value,
+    simTime:         +document.getElementById('st').value,
+    serviceVariance: model === 'gg1' ? +document.getElementById('vs2').value
+                                     : +(document.getElementById('vs')?.value || 0),
+    arrivalVariance: model === 'gg1' ? +document.getElementById('va').value : 0,
+    serviceDist:     model === 'gg1' ? document.getElementById('sdist2').value
+                                     : (document.getElementById('sdist')?.value || 'exponential'),
+    arrivalDist:     model === 'gg1' ? document.getElementById('adist').value : 'exponential'
+  };
+
+  try {
+    const r = await fetch('/api/simulate', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error(await r.text());
+    show(await r.json());
+  } catch(e) {
+    err.textContent = 'ERROR: ' + e.message;
+    err.classList.add('on');
+  } finally { btn.disabled = false; sp.classList.remove('on'); }
+}
+
+function fmt(v, dec=4) {
+  if (v >= 9990 || v == null) return '∞';
+  return typeof v === 'number' ? v.toFixed(dec) : String(v);
+}
+
+function show(d) {
+  document.getElementById('hr').textContent = 'ρ = ' + d.rho.toFixed(4);
+
+  // Stability badge
+  document.getElementById('badge').innerHTML = d.isStable
+    ? `<div class="badge ok">● STABLE  ρ = ${d.rho.toFixed(4)} &lt; 1  —  ${d.modelLabel}</div>`
+    : `<div class="badge bad">✖ UNSTABLE  ρ = ${d.rho.toFixed(4)} ≥ 1  —  queue grows without bound</div>`;
+
+  // 5 KPI tiles — exactly matching PDF output order
+  const tiles = [
+    { s:'Lq',  v:fmt(d.lq),              l:'Number in Queue'  },
+    { s:'Wq',  v:fmt(d.wq)+' min',       l:'Wait in Queue'    },
+    { s:'W',   v:fmt(d.w)+' min',        l:'Wait in System'   },
+    { s:'L',   v:fmt(d.l),               l:'Number in System' },
+    { s:'P₀',  v:(d.p0*100).toFixed(2)+'%', l:'Server Idle'  },
+  ];
+  document.getElementById('tiles').innerHTML =
+    tiles.map(t=>`<div class="tile">
+      <div class="tile-s">${t.s}</div>
+      <div class="tile-v">${t.v}</div>
+      <div class="tile-l">${t.l}</div>
+    </div>`).join('');
+
+  // Formula note
+  document.getElementById('fnote').textContent = d.formulaNote;
+
+  // Full table
+  const rows = [
+    ['Mean inter-arrival  E[A]',  fmt(1/d.lambda) + ' min'],
+    ['Mean service time   E[S]',  fmt(1/d.mu)     + ' min'],
+    ['Arrival rate  λ = 1/E[A]',  fmt(d.lambda)   + ' /min'],
+    ['Service rate  μ = 1/E[S]',  fmt(d.mu)       + ' /min'],
+    ['Traffic intensity  ρ = λ/μ',d.rho.toFixed(6)],
+    ['Number in queue  Lq',       fmt(d.lq)       + ' passengers'],
+    ['Wait in queue  Wq',         fmt(d.wq)       + ' min'],
+    ['Wait in system  W',         fmt(d.w)        + ' min'],
+    ['Number in system  L',       fmt(d.l)        + ' passengers'],
+    ['Server idle  P₀ = 1−ρ',    (d.p0*100).toFixed(4) + '%'],
+  ];
+  if (d.cs2 != null) rows.push(['Service CV²  Cs² = σs²/E[S]²', fmt(d.cs2)]);
+  if (d.ca2 != null) rows.push(['Arrival CV²  Ca² = σa²/E[A]²', fmt(d.ca2)]);
+  rows.push(
+    ['Simulation utilisation', (d.simUtilization*100).toFixed(2)+'%'],
+    ['Simulation avg wait',    fmt(d.simAvgWait)  + ' min'],
+    ['Simulation max queue',   d.simMaxQueue],
+    ['Total arrived',          d.simTotalArrivals],
+    ['Total served',           d.simTotalServed],
+  );
+
+  document.getElementById('tbody').innerHTML =
+    rows.map(([l,v]) => `<tr><td>${l}</td><td>${v}</td></tr>`).join('');
+
+  document.getElementById('results').classList.add('on');
+  document.getElementById('results').scrollIntoView({behavior:'smooth',block:'start'});
+}
+</script>
+</body>
+</html>
